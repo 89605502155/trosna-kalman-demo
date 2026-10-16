@@ -1,0 +1,28 @@
+[project]
+name = "trosna-kalman-demo"
+version = "0.0.1"
+description = "Comparison of the trosna-kalman library with reference Kalman filter implementations: filterpy, pykalman, statsmodels, simdkalman and listing A.1 of the paper"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "trosna-kalman[sklearn]==0.0.1",
+    "filterpy==1.4.5",
+    "pykalman>=0.11",
+    "statsmodels>=0.15",
+    "simdkalman>=1.0.4",
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "matplotlib>=3.9",
+    "jupyterlab>=4.0",
+    "nbconvert>=7.0",
+    "nbformat>=5.10",
+    "ipykernel>=6.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+# Until trosna-kalman 0.0.1 is published on PyPI it is taken from the neighbouring
+# folder; after the release remove this section and run `uv lock`.
+trosna-kalman = { path = "../trosna-kalman", editable = true }
