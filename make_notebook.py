@@ -50,14 +50,18 @@ md(
 4. **Производительность** на одном ряде, на пакете рядов и на модели с векторным состоянием.
 
 Все случайные данные порождаются с фиксированными зёрнами, поэтому результаты
-воспроизводимы. Рисунки сохраняются в папку `figures/` (PNG и TIFF 600 dpi),
-таблицы результатов — в `results/`.
+воспроизводимы. Таблицы результатов сохраняются в папку `results/`, рисунки —
+в `figures/` в натуральную ширину 165 мм (на две колонки журнальной полосы):
+PDF со встроенными шрифтами, TIFF 600 dpi и PNG для просмотра. Рисунки
+рассчитаны на чёрно-белую печать: на них нет сетки и фона, а серии различаются
+не только цветом, но и типом линии, маркером или подписью.
 """
 )
 
 code(
     r'''
 import importlib.metadata as metadata
+import io
 import math
 import os
 import platform
@@ -71,12 +75,14 @@ from pathlib import Path
 warnings.filterwarnings("ignore", category=SyntaxWarning)
 
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 import simdkalman
 import statsmodels.api as sm
 from filterpy.kalman import KalmanFilter as FilterPyKalman
 from filterpy.kalman import rts_smoother
+from PIL import Image
 from pykalman import KalmanFilter as PyKalman
 from scipy import stats
 
@@ -112,7 +118,8 @@ for package in ["trosna-kalman", "filterpy", "pykalman", "statsmodels", "simdkal
 
 code(
     r'''
-# Цвета закреплены за реализациями во всех рисунках (проверенная категориальная палитра).
+# Цвета и типы линий закреплены за реализациями во всех рисунках. В чёрно-белой
+# печати цвета сливаются, поэтому линии различаются ещё и штрихом.
 COLORS = {
     "trosna-kalman": "#2a78d6",
     "filterpy": "#eb6834",
@@ -124,30 +131,84 @@ COLORS = {
     "истина": "#52514e",
     "замеры": "#b9b8b2",
 }
+LINESTYLES = {
+    "trosna-kalman": "-",
+    "filterpy": (0, (5, 1.5, 1, 1.5)),
+    "statsmodels": (0, (1, 2)),
+    "pykalman": (0, (3, 1, 1, 1, 1, 1)),
+    "истина": (0, (6, 2.5)),
+}
+WIDTH = 165 / 25.4  # ширина рисунка на две колонки полосы, дюймы
 plt.rcParams.update(
     {
         "figure.dpi": 110,
-        "font.size": 8,
-        "axes.titlesize": 8.5,
-        "axes.labelsize": 8,
-        "xtick.labelsize": 7.5,
-        "ytick.labelsize": 7.5,
-        "legend.fontsize": 7,
+        "font.family": ["Times New Roman", "Liberation Serif", "DejaVu Serif"],
+        "font.size": 9,
+        "axes.titlesize": 9,
+        "axes.labelsize": 9,
+        "xtick.labelsize": 8,
+        "ytick.labelsize": 8,
+        "legend.fontsize": 8,
         "axes.spines.top": False,
         "axes.spines.right": False,
-        "axes.grid": True,
-        "grid.alpha": 0.25,
-        "grid.linewidth": 0.6,
         "lines.linewidth": 1.4,
+        "pdf.fonttype": 42,  # шрифты TrueType встраиваются в PDF
+        "savefig.facecolor": "white",
     }
 )
 MB = 1000.0  # ГБ → МБ
 
 
+def comma(value, digits=1):
+    """Число с десятичной запятой, как принято в русском тексте."""
+    return f"{value:.{digits}f}".replace(".", ",")
+
+
+def plural(n, one, few, many):
+    """Согласовать существительное с числом: 1 опрос, 2 опроса, 5 опросов."""
+    if n % 10 == 1 and n % 100 != 11:
+        return one
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return few
+    return many
+
+
+class DecimalComma(mticker.Formatter):
+    """Подписи шкалы с десятичной запятой поверх обычного форматтера matplotlib."""
+
+    def __init__(self, inner):
+        self.inner = inner
+
+    def set_axis(self, axis):
+        super().set_axis(axis)
+        self.inner.set_axis(axis)
+
+    def set_locs(self, locs):
+        super().set_locs(locs)
+        self.inner.set_locs(locs)
+
+    def __call__(self, x, pos=None):
+        return self.inner(x, pos).replace(".", ",")
+
+    def get_offset(self):
+        return self.inner.get_offset().replace(".", ",")
+
+
 def save(fig, name):
-    """Сохранить рисунок: PNG для просмотра и TIFF 600 dpi для редакции журнала."""
-    fig.savefig(FIGURES / f"{name}.png", dpi=200, bbox_inches="tight")
-    fig.savefig(FIGURES / f"{name}.tiff", dpi=600, bbox_inches="tight", pil_kwargs={"compression": "tiff_lzw"})
+    """Сохранить рисунок в натуральную величину: PDF, TIFF 600 dpi (RGB) и PNG для просмотра."""
+    for ax in fig.axes:
+        for axis in (ax.xaxis, ax.yaxis):
+            formatter = axis.get_major_formatter()
+            if isinstance(formatter, (mticker.ScalarFormatter, mticker.FuncFormatter, mticker.LogFormatter)):
+                axis.set_major_formatter(DecimalComma(formatter))
+    fig.savefig(FIGURES / f"{name}.pdf", dpi=600)
+    fig.savefig(FIGURES / f"{name}.png", dpi=200)
+    buffer = io.BytesIO()
+    fig.savefig(buffer, format="png", dpi=600)
+    with Image.open(buffer) as image:
+        image.convert("RGB").save(FIGURES / f"{name}.tiff", dpi=(600, 600), compression="tiff_lzw")
+    width, height = fig.get_size_inches() * 25.4
+    print(f"{name}: {width:.0f} × {height:.0f} мм")
 
 
 def rmse(errors):
@@ -347,14 +408,13 @@ accuracy1.round(3)
 
 code(
     r'''
-fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=(6.5, 2.9), gridspec_kw={"width_ratios": [1.5, 1]})
+fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=(WIDTH, 3.0), layout="constrained", gridspec_kw={"width_ratios": [1.5, 1]})
 window = slice(1000, 1300)
 t = np.arange(N1)[window]
 ax_left.plot(t, z1[window], ".", color=COLORS["замеры"], markersize=3, label="замеры")
-ax_left.plot(t, level1[window], color=COLORS["истина"], linestyle="--", linewidth=1.2, label="истинное потребление")
+ax_left.plot(t, level1[window], color=COLORS["истина"], linestyle=LINESTYLES["истина"], linewidth=1.2, label="истинное потребление")
 for name in ["trosna-kalman", "filterpy", "statsmodels"]:
-    style = {"trosna-kalman": "-", "filterpy": (0, (4, 3)), "statsmodels": (0, (1, 3))}[name]
-    ax_left.plot(t, estimates1[name][window], color=COLORS[name], linestyle=style, linewidth=1.6, label=name)
+    ax_left.plot(t, estimates1[name][window], color=COLORS[name], linestyle=LINESTYLES[name], linewidth=1.6, label=name)
 ax_left.set_xlabel("Время, с")
 ax_left.set_ylabel("Память ВМ, ГБ")
 ax_left.set_title("а) Оценки разных реализаций совпадают")
@@ -363,17 +423,15 @@ ax_left.legend(ncol=3, loc="upper center", bbox_to_anchor=(0.5, -0.2), frameon=F
 names = list(errors1)
 values = [np.mean(errors1[name]) * MB for name in names]
 bars = ax_right.barh(range(len(names)), values, color=[COLORS["замеры"], "#6f6e69", COLORS["trosna-kalman"]], height=0.55)
-ax_right.axvline(rmse_theory * MB, color=COLORS["истина"], linestyle="--", linewidth=1.2)
+ax_right.axvline(rmse_theory * MB, color=COLORS["истина"], linestyle=LINESTYLES["истина"], linewidth=1.2)
 ax_right.set_ylim(-1.1, len(names) - 0.5)
-ax_right.text(rmse_theory * MB + 1.5, -0.85, f"предел Риккати {rmse_theory * MB:.1f} МБ", fontsize=7, color=COLORS["истина"])
+ax_right.text(rmse_theory * MB + 1.5, -0.85, f"предел Риккати {comma(rmse_theory * MB)} МБ", fontsize=8)
 ax_right.set_yticks(range(len(names)), ["сырые замеры", "стандартный\nфильтр", "адаптивный\nмонитор"])
 for bar, value in zip(bars, values):
-    ax_right.text(value + 1, bar.get_y() + bar.get_height() / 2, f"{value:.1f} МБ", va="center", fontsize=7)
+    ax_right.text(value + 1, bar.get_y() + bar.get_height() / 2, f"{comma(value)} МБ", va="center", fontsize=8)
 ax_right.set_xlabel("СКО ошибки оценки, МБ")
 ax_right.set_title("б) Точность по 200 рядам")
 ax_right.set_xlim(0, max(values) * 1.3)
-ax_right.grid(axis="y", visible=False)
-fig.tight_layout()
 save(fig, "fig1_agreement")
 plt.show()
 '''
@@ -586,20 +644,20 @@ pd.DataFrame(significance).set_index("пара").round(4)
 
 code(
     r'''
-fig, ax = plt.subplots(figsize=(6.5, 3.9))
+fig, ax = plt.subplots(figsize=(WIDTH, 3.9), layout="constrained")
 ax.plot(ad_polls[order], ad_mae[order], "-o", color=COLORS["trosna-kalman"], markersize=5, label="адаптивный монитор trosna-kalman")
 fx = np.array([fixed2[i].mean_polls for i in INTERVALS])
 fy = np.array([fixed2[i].mean_mae for i in INTERVALS]) * MB
-ax.plot(fx, fy, "-s", color=COLORS["filterpy"], markersize=5, label="фильтр filterpy, постоянный интервал (q подобрано)")
+ax.plot(fx, fy, marker="s", linestyle=LINESTYLES["filterpy"], color=COLORS["filterpy"], markersize=5, markerfacecolor="white", label="фильтр filterpy, постоянный интервал (q подобрано)")
 ax.plot(heuristic2.mean_polls, heuristic2.mean_mae * MB, "D", color=COLORS["эвристика"], markersize=7, label="исходная эвристика")
-ax.axhline(every_second2.mean_mae * MB, color=COLORS["истина"], linestyle="--", linewidth=1.0)
-ax.text(31, every_second2.mean_mae * MB + 0.7, "опрос каждую секунду (300 опросов)", fontsize=7, color=COLORS["истина"])
-for eps, offset in {0.07: (-30, 6), 0.10: (-8, -13), 0.15: (8, -1), 0.30: (-8, -13)}.items():
+ax.axhline(every_second2.mean_mae * MB, color=COLORS["истина"], linestyle=LINESTYLES["истина"], linewidth=1.0)
+ax.text(31, every_second2.mean_mae * MB + 0.7, "опрос каждую секунду (300 опросов)", fontsize=8)
+for eps, offset in {0.07: (-30, 6), 0.10: (-8, -13), 0.15: (8, -1), 0.30: (-30, -13)}.items():
     r = adaptive2[eps]
-    ax.annotate(f"ε = {eps * MB:.0f} МБ", (r.mean_polls, r.mean_mae * MB), textcoords="offset points", xytext=offset, fontsize=7, color=COLORS["trosna-kalman"])
+    ax.annotate(f"ε = {eps * MB:.0f} МБ", (r.mean_polls, r.mean_mae * MB), textcoords="offset points", xytext=offset, fontsize=8)
 for interval, offset in {1: (-12, 6), 2: (4, 4), 3: (4, 4), 5: (4, 4), 7: (-18, -11), 10: (4, 4)}.items():
     r = fixed2[interval]
-    ax.annotate(f"{interval} с", (r.mean_polls, r.mean_mae * MB), textcoords="offset points", xytext=offset, fontsize=7, color=COLORS["filterpy"])
+    ax.annotate(f"{interval} с", (r.mean_polls, r.mean_mae * MB), textcoords="offset points", xytext=offset, fontsize=8)
 ax.set_xscale("log")
 ax.xaxis.set_minor_formatter(plt.NullFormatter())
 ticks = [30, 40, 50, 60, 80, 100, 150, 200, 300]
@@ -608,7 +666,6 @@ ax.set_xlabel("Среднее число опросов за 300 с (логар�
 ax.set_ylabel("Средняя абсолютная ошибка, МБ")
 ax.set_title("Ошибка оценки и число опросов: 100 проверочных сценариев")
 ax.legend(loc="upper right")
-fig.tight_layout()
 save(fig, "fig2_budget")
 plt.show()
 '''
@@ -629,26 +686,26 @@ runs = {
     "адаптивный, ε = 100 МБ": simulate(scenario.measurements, adaptive_factory(paper_config(0.10))),
     "постоянный интервал 3 с": simulate(scenario.measurements, partial(FilterPyFixedInterval, q=tuned_q[3], interval=3)),
 }
-fig, axes = plt.subplots(3, 1, figsize=(6.5, 5.4), sharex=True, gridspec_kw={"height_ratios": [2.2, 2.2, 1]})
+fig, axes = plt.subplots(3, 1, figsize=(WIDTH, 5.6), layout="constrained", sharex=True, gridspec_kw={"height_ratios": [2.2, 2.2, 1]})
 t = scenario.times
+axes[1].sharey(axes[0])
 for ax, (name, run), color in zip(axes[:2], runs.items(), [COLORS["trosna-kalman"], COLORS["filterpy"]]):
-    ax.plot(t, scenario.truth, color=COLORS["истина"], linestyle="--", linewidth=1.1, label="истинное потребление")
+    ax.plot(t, scenario.truth, color=COLORS["истина"], linestyle=LINESTYLES["истина"], linewidth=1.1, label="истинное потребление")
     ax.step(t, run.estimates, where="post", color=color, linewidth=1.5, label="оценка между опросами")
     ax.plot(run.poll_times, scenario.measurements[run.poll_times], ".", color=COLORS["замеры"], markersize=5, label="замер при опросе")
     mae = run.mean_absolute_error(scenario.truth) * MB
-    ax.set_title(f"{name}: {run.n_polls} опросов, ошибка {mae:.0f} МБ", loc="left")
+    ax.set_title(f"{name}: {run.n_polls} {plural(run.n_polls, 'опрос', 'опроса', 'опросов')}, ошибка {mae:.0f} МБ", loc="left")
     ax.set_ylabel("Память ВМ, ГБ")
     for change in scenario.change_times:
         ax.axvline(change, color=COLORS["истина"], linewidth=0.6, alpha=0.5)
 axes[0].legend(loc="upper left", ncol=1)
-for (name, run), color, marker in zip(runs.items(), [COLORS["trosna-kalman"], COLORS["filterpy"]], ["-", "--"]):
-    axes[2].step(run.poll_times, run.intervals, marker, where="post", color=color, linewidth=1.4, label=name)
+for (name, run), key in zip(runs.items(), ["trosna-kalman", "filterpy"]):
+    axes[2].step(run.poll_times, run.intervals, where="post", color=COLORS[key], linestyle=LINESTYLES[key], linewidth=1.4, label=name)
 axes[2].set_ylabel("Интервал, с")
 axes[2].set_xlabel("Время, с")
 axes[2].set_yticks([1, 5, 10])
 axes[2].set_ylim(0, 12.5)
-axes[2].legend(loc="upper right", ncol=2, fontsize=6.5)
-fig.tight_layout()
+axes[2].legend(loc="upper right", ncol=2, fontsize=7.5)
 save(fig, "fig3_timeline")
 plt.show()
 
@@ -834,7 +891,7 @@ smoothing3.round(2)
 
 code(
     r'''
-fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=(6.5, 2.9), gridspec_kw={"width_ratios": [1, 1.25]})
+fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=(WIDTH, 3.0), layout="constrained", gridspec_kw={"width_ratios": [1, 1.25]})
 labels = list(estimation)
 data = [np.array(estimation[name]["q"]) / Q3 for name in labels]
 colors = [COLORS["statsmodels"], COLORS["trosna-kalman"], COLORS["trosna-kalman"], COLORS["pykalman"]]
@@ -843,17 +900,16 @@ for patch, color, hatch in zip(box["boxes"], colors, ["", "", "////", ""]):
     patch.set_facecolor(color)
     patch.set_alpha(0.55)
     patch.set_hatch(hatch)
-ax_left.axvline(1.0, color=COLORS["истина"], linestyle="--", linewidth=1.0)
+ax_left.axvline(1.0, color=COLORS["истина"], linestyle=LINESTYLES["истина"], linewidth=1.0)
 short = {
     "statsmodels (ММП)": "statsmodels\n(ММП, 20 журналов)",
     "trosna-kalman (ММП)": "trosna-kalman\n(ММП, 20 журналов)",
     "trosna-kalman (моменты)": "trosna-kalman\n(моменты, 20 журналов)",
     EM: "pykalman\n(EM, 5 журналов)",
 }
-ax_left.set_yticks(range(1, len(labels) + 1), [short[name] for name in labels], fontsize=6.5)
+ax_left.set_yticks(range(1, len(labels) + 1), [short[name] for name in labels], fontsize=7.5)
 ax_left.set_xlabel("Оценка q / истинное q")
 ax_left.set_title("а) Оценка интенсивности q")
-ax_left.grid(axis="y", visible=False)
 
 s = make_scenarios(30, seed=303)[0]
 z, truth = s.measurements, s.truth
@@ -864,14 +920,13 @@ pk = PyKalman(
     observation_covariance=[[r_s]], initial_state_mean=[z[0]], initial_state_covariance=[[r_s + q_s]],
 )
 ax_right.plot(t, z[window], ".", color=COLORS["замеры"], markersize=3, label="замеры")
-ax_right.plot(t, truth[window], color=COLORS["истина"], linestyle="--", linewidth=1.1, label="истинное потребление")
+ax_right.plot(t, truth[window], color=COLORS["истина"], linestyle=LINESTYLES["истина"], linewidth=1.1, label="истинное потребление")
 ax_right.plot(t, by_trosna(z, q_s, r_s)[window], color=COLORS["trosna-kalman"], linewidth=1.5, label="фильтр (только прошлое)")
-ax_right.plot(t, pk.smooth(z)[0][window, 0], color=COLORS["pykalman"], linestyle=(0, (4, 2)), linewidth=1.6, label="сглаживание RTS (вся запись)")
+ax_right.plot(t, pk.smooth(z)[0][window, 0], color=COLORS["pykalman"], linestyle=LINESTYLES["pykalman"], linewidth=1.6, label="сглаживание RTS (вся запись)")
 ax_right.set_xlabel("Время, с")
 ax_right.set_ylabel("Память ВМ, ГБ")
 ax_right.set_title("б) Фрагмент вокруг скачка нагрузки")
-ax_right.legend(loc="lower right", fontsize=6.5)
-fig.tight_layout()
+ax_right.legend(loc="upper left", fontsize=7.5)
 save(fig, "fig4_offline")
 plt.show()
 '''
@@ -1074,21 +1129,19 @@ panels = [
     (speed_batch, "б) Скалярная модель, пакет рядов по 1000 замеров"),
     (speed_vector, "в) Модель «уровень + скорость роста», один ряд из 20 000 замеров"),
 ]
-fig, axes = plt.subplots(3, 1, figsize=(6.5, 7.6), gridspec_kw={"height_ratios": [len(s) for s, _ in panels]})
+fig, axes = plt.subplots(3, 1, figsize=(WIDTH, 7.0), layout="constrained", gridspec_kw={"height_ratios": [len(s) for s, _ in panels]})
 for ax, (series, title) in zip(axes, panels):
     series = series.sort_values(ascending=False)
     bars = ax.barh(range(len(series)), series.values, color=[color_of(name) for name in series.index], height=0.6)
     ax.set_xscale("log")
-    ax.set_yticks(range(len(series)), list(series.index), fontsize=7)
+    ax.set_yticks(range(len(series)), list(series.index), fontsize=8)
     for bar, value in zip(bars, series.values):
-        label = f"{value:.0f}" if value >= 10 else f"{value:.1f}" if value >= 1 else f"{value:.2f}"
-        ax.text(value * 1.15, bar.get_y() + bar.get_height() / 2, label, va="center", fontsize=7)
+        label = comma(value, 0 if value >= 10 else 1 if value >= 1 else 2)
+        ax.text(value * 1.15, bar.get_y() + bar.get_height() / 2, label, va="center", fontsize=8)
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda value, _: f"{value:g}"))
     ax.set_xlabel("Время на один замер, мкс (логарифмическая шкала)")
     ax.set_title(title)
     ax.set_xlim(series.min() / 2, series.max() * 8)
-    ax.grid(axis="y", visible=False)
-fig.tight_layout()
 save(fig, "fig5_speed")
 plt.show()
 '''
@@ -1102,8 +1155,8 @@ md(
 чистом Python, тогда как библиотеки общего назначения на каждом шаге тратят
 время на операции NumPy с маленькими матрицами (filterpy — примерно в 20 раз
 дольше, simdkalman и pykalman на одном ряде — ещё дольше). На пакете рядов
-векторизация simdkalman ускоряет обработку примерно в 100 раз по сравнению с
-циклом filterpy, а векторизованный `KalmanDenoiser` trosna-kalman для
+векторизация simdkalman ускоряет обработку почти на два порядка по сравнению
+с циклом filterpy, а векторизованный `KalmanDenoiser` trosna-kalman для
 скалярной модели ещё быстрее. Для модели с векторным состоянием картина
 обратная: скомпилированный фильтр statsmodels примерно в 10 раз быстрее
 общего матричного фильтра trosna-kalman и в 5 раз быстрее filterpy, при

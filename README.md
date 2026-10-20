@@ -71,7 +71,7 @@ data come from fixed seeds.
 | `comparison.ipynb` | ноутбук с экспериментами и результатами выполнения / the notebook with outputs |
 | `make_notebook.py` | исходный текст ячеек ноутбука / the source of the notebook cells |
 | `results/*.csv` | таблицы результатов / result tables |
-| `figures/` | рисунки, PNG и TIFF 600 dpi / figures, PNG and TIFF 600 dpi |
+| `figures/` | рисунки шириной 165 мм: PDF, TIFF 600 dpi, PNG / 165 mm wide figures: PDF, TIFF 600 dpi, PNG |
 
 ## Запуск / Running
 

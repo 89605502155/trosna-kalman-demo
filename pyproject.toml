@@ -13,6 +13,7 @@ dependencies = [
     "numpy>=2.0",
     "pandas>=2.2",
     "matplotlib>=3.9",
+    "pillow>=10",
     "jupyterlab>=4.0",
     "nbconvert>=7.0",
     "nbformat>=5.10",
