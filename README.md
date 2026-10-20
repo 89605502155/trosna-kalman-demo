@@ -44,7 +44,7 @@ data come from fixed seeds.
    историю потребления на 17 % точнее каузального фильтра; statsmodels даёт
    стандартные ошибки оценок, EM pykalman сходится примерно за 100 итераций.
 4. Для скалярной модели быстрее всех специализированные классы trosna-kalman;
-   для модели с векторным состоянием statsmodels примерно в 10 раз быстрее
+   для модели с векторным состоянием statsmodels на порядок быстрее
    общего матричного фильтра trosna-kalman.
 
 ## Main results
@@ -61,8 +61,8 @@ data come from fixed seeds.
    history 17 % more accurately than a causal filter; statsmodels reports
    standard errors, pykalman's EM converges in about 100 iterations.
 4. For the scalar model the specialized classes of trosna-kalman are the
-   fastest; for a vector-state model statsmodels is about 10 times faster than
-   the general matrix filter of trosna-kalman.
+   fastest; for a vector-state model statsmodels is an order of magnitude faster
+   than the general matrix filter of trosna-kalman.
 
 ## Содержимое / Contents
 

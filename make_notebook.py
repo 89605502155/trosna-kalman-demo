@@ -65,6 +65,7 @@ import io
 import math
 import os
 import platform
+import re
 import sys
 import time
 import warnings
@@ -143,12 +144,12 @@ plt.rcParams.update(
     {
         "figure.dpi": 110,
         "font.family": ["Times New Roman", "Liberation Serif", "DejaVu Serif"],
-        "font.size": 9,
-        "axes.titlesize": 9,
-        "axes.labelsize": 9,
-        "xtick.labelsize": 8,
-        "ytick.labelsize": 8,
-        "legend.fontsize": 8,
+        "font.size": 12,
+        "axes.titlesize": 12,
+        "axes.labelsize": 12,
+        "xtick.labelsize": 12,
+        "ytick.labelsize": 12,
+        "legend.fontsize": 12,
         "axes.spines.top": False,
         "axes.spines.right": False,
         "lines.linewidth": 1.4,
@@ -188,10 +189,10 @@ class DecimalComma(mticker.Formatter):
         self.inner.set_locs(locs)
 
     def __call__(self, x, pos=None):
-        return self.inner(x, pos).replace(".", ",")
+        return re.sub(r"(?<=\d)\.(?=\d)", ",", self.inner(x, pos))
 
     def get_offset(self):
-        return self.inner.get_offset().replace(".", ",")
+        return re.sub(r"(?<=\d)\.(?=\d)", ",", self.inner.get_offset())
 
 
 def save(fig, name):
@@ -408,7 +409,7 @@ accuracy1.round(3)
 
 code(
     r'''
-fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=(WIDTH, 3.0), layout="constrained", gridspec_kw={"width_ratios": [1.5, 1]})
+fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=(WIDTH, 4.3), layout="constrained", gridspec_kw={"width_ratios": [1.35, 1]})
 window = slice(1000, 1300)
 t = np.arange(N1)[window]
 ax_left.plot(t, z1[window], ".", color=COLORS["замеры"], markersize=3, label="замеры")
@@ -418,20 +419,20 @@ for name in ["trosna-kalman", "filterpy", "statsmodels"]:
 ax_left.set_xlabel("Время, с")
 ax_left.set_ylabel("Память ВМ, ГБ")
 ax_left.set_title("а) Оценки разных реализаций совпадают")
-ax_left.legend(ncol=3, loc="upper center", bbox_to_anchor=(0.5, -0.2), frameon=False)
+fig.legend(*ax_left.get_legend_handles_labels(), ncol=3, loc="outside lower center", frameon=False)
 
 names = list(errors1)
 values = [np.mean(errors1[name]) * MB for name in names]
 bars = ax_right.barh(range(len(names)), values, color=[COLORS["замеры"], "#6f6e69", COLORS["trosna-kalman"]], height=0.55)
 ax_right.axvline(rmse_theory * MB, color=COLORS["истина"], linestyle=LINESTYLES["истина"], linewidth=1.2)
 ax_right.set_ylim(-1.1, len(names) - 0.5)
-ax_right.text(rmse_theory * MB + 1.5, -0.85, f"предел Риккати {comma(rmse_theory * MB)} МБ", fontsize=8)
+ax_right.text(rmse_theory * MB + 1.5, -0.8, f"предел Риккати\n{comma(rmse_theory * MB)} МБ", va="center")
 ax_right.set_yticks(range(len(names)), ["сырые замеры", "стандартный\nфильтр", "адаптивный\nмонитор"])
 for bar, value in zip(bars, values):
-    ax_right.text(value + 1, bar.get_y() + bar.get_height() / 2, f"{comma(value)} МБ", va="center", fontsize=8)
+    ax_right.text(value + 1, bar.get_y() + bar.get_height() / 2, f"{comma(value)} МБ", va="center")
 ax_right.set_xlabel("СКО ошибки оценки, МБ")
 ax_right.set_title("б) Точность по 200 рядам")
-ax_right.set_xlim(0, max(values) * 1.3)
+ax_right.set_xlim(0, max(values) * 1.45)
 save(fig, "fig1_agreement")
 plt.show()
 '''
@@ -644,28 +645,30 @@ pd.DataFrame(significance).set_index("пара").round(4)
 
 code(
     r'''
-fig, ax = plt.subplots(figsize=(WIDTH, 3.9), layout="constrained")
+fig, ax = plt.subplots(figsize=(WIDTH, 5.0), layout="constrained")
 ax.plot(ad_polls[order], ad_mae[order], "-o", color=COLORS["trosna-kalman"], markersize=5, label="адаптивный монитор trosna-kalman")
 fx = np.array([fixed2[i].mean_polls for i in INTERVALS])
 fy = np.array([fixed2[i].mean_mae for i in INTERVALS]) * MB
 ax.plot(fx, fy, marker="s", linestyle=LINESTYLES["filterpy"], color=COLORS["filterpy"], markersize=5, markerfacecolor="white", label="фильтр filterpy, постоянный интервал (q подобрано)")
 ax.plot(heuristic2.mean_polls, heuristic2.mean_mae * MB, "D", color=COLORS["эвристика"], markersize=7, label="исходная эвристика")
 ax.axhline(every_second2.mean_mae * MB, color=COLORS["истина"], linestyle=LINESTYLES["истина"], linewidth=1.0)
-ax.text(31, every_second2.mean_mae * MB + 0.7, "опрос каждую секунду (300 опросов)", fontsize=8)
-for eps, offset in {0.07: (-30, 6), 0.10: (-8, -13), 0.15: (8, -1), 0.30: (-30, -13)}.items():
+ax.text(31, every_second2.mean_mae * MB + 0.7, "опрос каждую секунду (300 опросов)")
+# подписи ε вынесены на свободные места и соединены с точкой линией
+for eps, place in {0.07: (140, 37.3), 0.10: (60, 49.5), 0.15: (54, 81.5), 0.30: (44, 88.5)}.items():
     r = adaptive2[eps]
-    ax.annotate(f"ε = {eps * MB:.0f} МБ", (r.mean_polls, r.mean_mae * MB), textcoords="offset points", xytext=offset, fontsize=8)
-for interval, offset in {1: (-12, 6), 2: (4, 4), 3: (4, 4), 5: (4, 4), 7: (-18, -11), 10: (4, 4)}.items():
+    ax.annotate(f"ε = {eps * MB:.0f} МБ", (r.mean_polls, r.mean_mae * MB), xytext=place,
+                arrowprops={"arrowstyle": "-", "color": "black", "linewidth": 0.7, "shrinkA": 1, "shrinkB": 4})
+for interval, offset in {1: (6, -6), 2: (4, 4), 3: (4, 4), 5: (4, 4), 7: (-18, -14), 10: (4, 4)}.items():
     r = fixed2[interval]
-    ax.annotate(f"{interval} с", (r.mean_polls, r.mean_mae * MB), textcoords="offset points", xytext=offset, fontsize=8)
+    ax.annotate(f"{interval} с", (r.mean_polls, r.mean_mae * MB), textcoords="offset points", xytext=offset)
 ax.set_xscale("log")
 ax.xaxis.set_minor_formatter(plt.NullFormatter())
 ticks = [30, 40, 50, 60, 80, 100, 150, 200, 300]
 ax.set_xticks(ticks, [str(tick) for tick in ticks])
+ax.set_ylim(35.5, 92)
 ax.set_xlabel("Среднее число опросов за 300 с (логарифмическая шкала)")
 ax.set_ylabel("Средняя абсолютная ошибка, МБ")
-ax.set_title("Ошибка оценки и число опросов: 100 проверочных сценариев")
-ax.legend(loc="upper right")
+fig.legend(*ax.get_legend_handles_labels(), loc="outside lower center", ncol=2, frameon=False)
 save(fig, "fig2_budget")
 plt.show()
 '''
@@ -686,7 +689,7 @@ runs = {
     "адаптивный, ε = 100 МБ": simulate(scenario.measurements, adaptive_factory(paper_config(0.10))),
     "постоянный интервал 3 с": simulate(scenario.measurements, partial(FilterPyFixedInterval, q=tuned_q[3], interval=3)),
 }
-fig, axes = plt.subplots(3, 1, figsize=(WIDTH, 5.6), layout="constrained", sharex=True, gridspec_kw={"height_ratios": [2.2, 2.2, 1]})
+fig, axes = plt.subplots(3, 1, figsize=(WIDTH, 7.4), layout="constrained", sharex=True, gridspec_kw={"height_ratios": [2.2, 2.2, 1.3]})
 t = scenario.times
 axes[1].sharey(axes[0])
 for ax, (name, run), color in zip(axes[:2], runs.items(), [COLORS["trosna-kalman"], COLORS["filterpy"]]):
@@ -698,14 +701,14 @@ for ax, (name, run), color in zip(axes[:2], runs.items(), [COLORS["trosna-kalman
     ax.set_ylabel("Память ВМ, ГБ")
     for change in scenario.change_times:
         ax.axvline(change, color=COLORS["истина"], linewidth=0.6, alpha=0.5)
-axes[0].legend(loc="upper left", ncol=1)
+fig.legend(*axes[0].get_legend_handles_labels(), loc="outside upper center", ncol=2, frameon=False)
 for (name, run), key in zip(runs.items(), ["trosna-kalman", "filterpy"]):
     axes[2].step(run.poll_times, run.intervals, where="post", color=COLORS[key], linestyle=LINESTYLES[key], linewidth=1.4, label=name)
 axes[2].set_ylabel("Интервал, с")
 axes[2].set_xlabel("Время, с")
 axes[2].set_yticks([1, 5, 10])
-axes[2].set_ylim(0, 12.5)
-axes[2].legend(loc="upper right", ncol=2, fontsize=7.5)
+axes[2].set_ylim(0, 19)
+axes[2].legend(loc="upper center", ncol=2, frameon=False)
 save(fig, "fig3_timeline")
 plt.show()
 
@@ -767,7 +770,7 @@ md(
 EM-алгоритмом в pykalman и функцией `estimate_noise_parameters` библиотеки
 trosna-kalman (максимальное правдоподобие и метод моментов). EM сходится
 медленно: ему дано 100 итераций, что на этих данных достаточно для
-сходимости, а из-за времени работы (около 50 с на журнал) он запускается на
+сходимости, а из-за времени работы (около минуты на журнал) он запускается на
 первых 5 журналах; траектория сходимости приведена ниже. (б) 30 сценариев раздела 4.5 с
 замером каждую секунду: каузальный фильтр, который использует только прошлые
 замеры, против сглаживателя Рауха — Тунга — Штрибеля (RTS), который
@@ -891,7 +894,7 @@ smoothing3.round(2)
 
 code(
     r'''
-fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=(WIDTH, 3.0), layout="constrained", gridspec_kw={"width_ratios": [1, 1.25]})
+fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=(WIDTH, 4.6), layout="constrained", gridspec_kw={"width_ratios": [1, 1.1]})
 labels = list(estimation)
 data = [np.array(estimation[name]["q"]) / Q3 for name in labels]
 colors = [COLORS["statsmodels"], COLORS["trosna-kalman"], COLORS["trosna-kalman"], COLORS["pykalman"]]
@@ -907,7 +910,7 @@ short = {
     "trosna-kalman (моменты)": "trosna-kalman\n(моменты, 20 журналов)",
     EM: "pykalman\n(EM, 5 журналов)",
 }
-ax_left.set_yticks(range(1, len(labels) + 1), [short[name] for name in labels], fontsize=7.5)
+ax_left.set_yticks(range(1, len(labels) + 1), [short[name] for name in labels])
 ax_left.set_xlabel("Оценка q / истинное q")
 ax_left.set_title("а) Оценка интенсивности q")
 
@@ -925,8 +928,8 @@ ax_right.plot(t, by_trosna(z, q_s, r_s)[window], color=COLORS["trosna-kalman"], 
 ax_right.plot(t, pk.smooth(z)[0][window, 0], color=COLORS["pykalman"], linestyle=LINESTYLES["pykalman"], linewidth=1.6, label="сглаживание RTS (вся запись)")
 ax_right.set_xlabel("Время, с")
 ax_right.set_ylabel("Память ВМ, ГБ")
-ax_right.set_title("б) Фрагмент вокруг скачка нагрузки")
-ax_right.legend(loc="upper left", fontsize=7.5)
+ax_right.set_title("б) Скачок нагрузки")
+fig.legend(*ax_right.get_legend_handles_labels(), loc="outside lower center", ncol=2, frameon=False)
 save(fig, "fig4_offline")
 plt.show()
 '''
@@ -942,7 +945,7 @@ md(
 параметры методом максимального правдоподобия и сразу сообщает их
 стандартные ошибки, а pykalman предлагает EM-алгоритм, который без изменений
 переносится на модели с многомерным состоянием, но сходится медленно: ему
-нужно около 100 итераций, то есть примерно 50 с на журнал из 1000 замеров.
+нужно около 100 итераций, то есть около минуты на журнал из 1000 замеров.
 Оценка максимального правдоподобия `estimate_noise_parameters` в этой простой
 модели практически совпала с оценкой statsmodels и получена быстрее, но
 стандартных ошибок не даёт; метод моментов мгновенный, но шумный и смещённый
@@ -1129,18 +1132,26 @@ panels = [
     (speed_batch, "б) Скалярная модель, пакет рядов по 1000 замеров"),
     (speed_vector, "в) Модель «уровень + скорость роста», один ряд из 20 000 замеров"),
 ]
-fig, axes = plt.subplots(3, 1, figsize=(WIDTH, 7.0), layout="constrained", gridspec_kw={"height_ratios": [len(s) for s, _ in panels]})
+def wrap_label(name):
+    """Длинную подпись разбить на две строки, чтобы осталось место для столбцов."""
+    if len(name) <= 24:
+        return name
+    cut = name.rfind(" (") if " (" in name else name.find(": ") + 1
+    return name[:cut].rstrip() + "\n" + name[cut:].strip()
+
+
+fig, axes = plt.subplots(3, 1, figsize=(WIDTH, 9.4), layout="constrained", gridspec_kw={"height_ratios": [len(s) for s, _ in panels]})
 for ax, (series, title) in zip(axes, panels):
     series = series.sort_values(ascending=False)
     bars = ax.barh(range(len(series)), series.values, color=[color_of(name) for name in series.index], height=0.6)
     ax.set_xscale("log")
-    ax.set_yticks(range(len(series)), list(series.index), fontsize=8)
+    ax.set_yticks(range(len(series)), [wrap_label(name) for name in series.index])
     for bar, value in zip(bars, series.values):
         label = comma(value, 0 if value >= 10 else 1 if value >= 1 else 2)
-        ax.text(value * 1.15, bar.get_y() + bar.get_height() / 2, label, va="center", fontsize=8)
+        ax.text(value * 1.15, bar.get_y() + bar.get_height() / 2, label, va="center")
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda value, _: f"{value:g}"))
-    ax.set_xlabel("Время на один замер, мкс (логарифмическая шкала)")
-    ax.set_title(title)
+    ax.set_xlabel("Время на один замер, мкс (логарифмическая шкала)", loc="right")
+    ax.set_title(title, loc="right")
     ax.set_xlim(series.min() / 2, series.max() * 8)
 save(fig, "fig5_speed")
 plt.show()
@@ -1158,8 +1169,8 @@ md(
 векторизация simdkalman ускоряет обработку почти на два порядка по сравнению
 с циклом filterpy, а векторизованный `KalmanDenoiser` trosna-kalman для
 скалярной модели ещё быстрее. Для модели с векторным состоянием картина
-обратная: скомпилированный фильтр statsmodels примерно в 10 раз быстрее
-общего матричного фильтра trosna-kalman и в 5 раз быстрее filterpy, при
+обратная: скомпилированный фильтр statsmodels на порядок быстрее
+общего матричного фильтра trosna-kalman и в 4–5 раз быстрее filterpy, при
 одинаковом результате. Это сильная сторона statsmodels: общие модели
 пространства состояний любой размерности с циклом фильтра на Cython. Общий
 матричный фильтр trosna-kalman написан на NumPy и на каждом шаге проверяет
@@ -1178,7 +1189,7 @@ md(
 | 1. Согласие и оптимальность | одинаковость оценок и близость к пределу точности при известной модели | все реализации совпадают; стандартный фильтр с известными параметрами оптимален, адаптивный уступает ему примерно на 20 % |
 | 2. Адаптивный опрос | ошибка при одинаковом числе опросов в сценариях записки | при 60–150 опросах за 300 с адаптивный монитор trosna-kalman точнее фильтра с постоянным интервалом на 5–10 %; при 50 опросах и меньше преимущества нет |
 | 3. Офлайн-анализ | оценка параметров и восстановление истории по всей записи | сглаживатели RTS (filterpy, pykalman, statsmodels, simdkalman) точнее любого каузального фильтра на 17 %; statsmodels даёт стандартные ошибки, pykalman — EM для многомерных моделей |
-| 4. Производительность | время на замер | для скалярной модели быстрее специализированные классы trosna-kalman; для векторной модели statsmodels примерно в 10 раз быстрее общего фильтра trosna-kalman |
+| 4. Производительность | время на замер | для скалярной модели быстрее специализированные классы trosna-kalman; для векторной модели statsmodels на порядок быстрее общего фильтра trosna-kalman |
 
 Классические реализации остаются лучшим выбором, когда модель известна, когда
 нужно сглаживание и оценка параметров по готовым журналам и когда модель
