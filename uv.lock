@@ -2955,33 +2955,19 @@ wheels = [
 [[package]]
 name = "trosna-kalman"
 version = "0.0.1"
-source = { editable = "../trosna-kalman" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/eb/75/0f6b5fadf4ddc6aa30027572ac2dfd3d8605c69f70bbf71e971fcb10e181/trosna_kalman-0.0.1.tar.gz", hash = "sha256:ecb96b8c6c844b87ed32e59fefb66f1d549da9b0569f69738746f934474a6187", size = 106966, upload-time = "2026-10-20T22:08:35.916Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/69/f9/02635ce7e4afe0339dfdf9c6f560ddd231d4692dd719bed66044aadb132d/trosna_kalman-0.0.1-py3-none-any.whl", hash = "sha256:a4f1e7d0c322cc1ccf810a752a32c7987994c9beedb4529aba4894f6a351ed8d", size = 45768, upload-time = "2026-10-20T22:08:33.947Z" },
 ]
 
 [package.optional-dependencies]
 sklearn = [
     { name = "scikit-learn" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "numpy", specifier = ">=1.26" },
-    { name = "scikit-learn", marker = "extra == 'sklearn'", specifier = ">=1.6" },
-]
-provides-extras = ["sklearn"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "hypothesis", specifier = ">=6.168.5" },
-    { name = "mypy", specifier = ">=2.4.0" },
-    { name = "pandas", specifier = ">=2.2" },
-    { name = "pytest", specifier = ">=9.1.1" },
-    { name = "pytest-cov", specifier = ">=7.1.0" },
-    { name = "ruff", specifier = ">=0.16.10" },
-    { name = "trosna-kalman", extras = ["sklearn"] },
 ]
 
 [[package]]
@@ -3019,7 +3005,7 @@ requires-dist = [
     { name = "pykalman", specifier = ">=0.11" },
     { name = "simdkalman", specifier = ">=1.0.4" },
     { name = "statsmodels", specifier = ">=0.15" },
-    { name = "trosna-kalman", extras = ["sklearn"], editable = "../trosna-kalman" },
+    { name = "trosna-kalman", extras = ["sklearn"], specifier = "==0.0.1" },
 ]
 
 [[package]]

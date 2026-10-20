@@ -23,7 +23,3 @@ dependencies = [
 [tool.uv]
 package = false
 
-[tool.uv.sources]
-# Until trosna-kalman 0.0.1 is published on PyPI it is taken from the neighbouring
-# folder; after the release remove this section and run `uv lock`.
-trosna-kalman = { path = "../trosna-kalman", editable = true }

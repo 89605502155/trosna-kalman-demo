@@ -83,15 +83,11 @@ uv run jupyter nbconvert --to notebook --execute --inplace comparison.ipynb --Ex
 uv run jupyter lab comparison.ipynb
 ```
 
-Нужен Python 3.11 или новее. Пока trosna-kalman 0.0.1 не опубликована на PyPI,
-`uv sync` берёт её из соседней папки `../trosna-kalman` (раздел
-`[tool.uv.sources]` в `pyproject.toml`); после публикации этот раздел нужно
-удалить и выполнить `uv lock`.
+Нужен Python 3.11 или новее. Библиотека trosna-kalman 0.0.1 устанавливается
+с [PyPI](https://pypi.org/project/trosna-kalman/0.0.1/).
 
-Python 3.11 or newer is required. Until trosna-kalman 0.0.1 is published on
-PyPI, `uv sync` takes it from the neighbouring folder `../trosna-kalman` (the
-`[tool.uv.sources]` section of `pyproject.toml`); after the release remove that
-section and run `uv lock`.
+Python 3.11 or newer is required. The trosna-kalman 0.0.1 library is installed
+from [PyPI](https://pypi.org/project/trosna-kalman/0.0.1/).
 
 ## Лицензия / License
 
